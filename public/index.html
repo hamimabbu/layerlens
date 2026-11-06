@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+  <meta name="description" content="Explore the clues in your browser and connection. Every finding comes with its source, its limits, and a receipt.">
+  <title>LayerLens — Your connection, explained</title>
+  <link rel="icon" href="/mark.svg" type="image/svg+xml"><link rel="stylesheet" href="/styles.css">
+</head>
+<body>
+  <a class="skip" href="#workspace">Skip to the experiment</a>
+  <header class="topbar">
+    <a class="brand" href="/" aria-label="LayerLens home"><img src="/mark.svg" width="32" height="32" alt=""><strong>layerlens<span> / lab</span></strong></a>
+    <nav aria-label="Page navigation"><a href="#workspace">The experiment</a><a href="#how">How it works</a><button id="privacy-open" class="nav-button">Privacy notes <span aria-hidden="true">↗</span></button></nav>
+    <span class="edition"><i></i> Independent security project</span>
+  </header>
+  <main>
+    <section class="hero" aria-labelledby="title">
+      <div class="hero-copy"><p class="eyebrow"><span class="tiny-line"></span> A LITTLE CURIOSITY. A CLEARER PICTURE.</p>
+        <h1 id="title">You haven’t<br>introduced <em>yourself.</em></h1>
+        <p class="intro">What can an ordinary connection tell a website?<br> Follow the clues. See the evidence. Keep the choice.</p>
+        <div class="hero-actions"><button class="button primary" id="sample">Explore a sample <span>↗</span></button><button class="button secondary" id="browser-start">Try with my browser <span>→</span></button></div>
+        <p class="hero-note"><span class="check-mark">✓</span> No account. Each extra check starts with your choice.</p>
+      </div>
+      <div class="hero-art" aria-label="Three layers: browser, connection and public records">
+        <div class="art-grid"></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+        <div class="central-node"><span class="node-dot"></span><span>YOUR CONNECTION</span><strong>A trail of clues.<br>A person still unknown.</strong><div class="node-tags"><span>Browser</span><span>Network</span><span>Transport</span></div></div>
+        <div class="floating-label float-one"><i class="mint-dot"></i> BROWSER-REPORTED <small>Settings ≠ identity</small></div>
+        <div class="floating-label float-two"><i class="amber-dot"></i> SOURCE-REPORTED <small>Context, with limits</small></div>
+        <div class="art-coordinate">01 / 03 <span>OBSERVE · EXPLAIN · UNDERSTAND</span></div>
+      </div>
+    </section>
+
+    <section id="workspace" class="workspace" aria-labelledby="workspace-title">
+      <div class="section-top"><div><p class="eyebrow">YOUR EXPLORATION</p><h2 id="workspace-title">Behind the connection</h2></div><div class="workspace-actions"><span class="mode-pill" id="mode">Ready when you are</span><button class="text-button" id="reset">↻ Reset</button></div></div>
+      <div class="workspace-grid">
+        <aside class="controls" aria-label="Choose checks">
+          <p class="panel-label">CHOOSE YOUR LAYERS</p>
+          <button class="layer selected" data-layer="browser"><span class="layer-icon">01</span><span><strong>Your browser</strong><small>Settings and capabilities</small></span><span class="layer-state" id="browser-state">Local</span></button>
+          <button class="layer" data-layer="connection"><span class="layer-icon">02</span><span><strong>Your connection</strong><small>IP and transport evidence</small></span><span class="layer-state" id="connection-state">Server</span></button>
+          <button class="layer" data-layer="records"><span class="layer-icon">03</span><span><strong>Public context</strong><small>DNS and registry records</small></span><span class="layer-state" id="records-state">Optional</span></button>
+          <div class="choice-box" id="choice-box">
+            <h3 id="choice-title">A look around your browser</h3><p id="choice-description">These selected checks run in this tab. Their results do not need to be sent to our server.</p>
+            <div id="browser-options"><label class="checkbox"><input id="hardware" type="checkbox"><span>Include approximate hardware hints</span></label><label class="checkbox"><input id="pattern" type="checkbox"><span>Derive a local attribute pattern</span></label></div>
+            <div id="record-options" hidden>
+              <label class="checkbox"><input type="checkbox" name="record" value="ptr"><span>Reverse DNS <small id="recipient-ptr">Checking configuration…</small></span></label>
+              <label class="checkbox"><input type="checkbox" name="record" value="rdap"><span>Network registry <small id="recipient-rdap">Checking configuration…</small></span></label>
+              <label class="checkbox"><input type="checkbox" name="record" value="internetdb"><span>Historical IP records <small id="recipient-internetdb">Checking configuration…</small></span></label>
+              <label class="checkbox approval"><input id="external-consent" type="checkbox"><span>I choose to send my connection address to the selected sources.</span></label>
+            </div>
+            <button class="button primary run-button" id="run">Run browser check <span>→</span></button>
+            <div id="transport-choice" hidden><p>A separate first-party TLS endpoint will receive a diagnostic request. Cookies are omitted. Handshake reuse may limit available results.</p><button class="button secondary run-button" id="transport-run">Run transport diagnostic <span>↗</span></button></div>
+          </div>
+          <div class="trust-note"><span>◈</span><p><strong>Your choice, at every layer.</strong>Closing a panel does not run it. Clear results whenever you want.</p></div>
+        </aside>
+
+        <div class="findings">
+          <div class="findings-head"><div><span class="panel-label" id="findings-label">LOCAL BROWSER</span><h3 id="findings-title">A few facts. Their whole story.</h3></div><span id="finding-count">0 findings</span></div>
+          <div id="status" class="status" role="status" aria-live="polite">Start with a sample, or choose a check. Nothing extra has run.</div>
+          <div class="stats"><div><small>AVAILABLE</small><strong id="available-count">—</strong></div><div><small>UNAVAILABLE</small><strong id="unavailable-count">—</strong></div><div><small>IDENTITY</small><strong class="unknown">Still unknown</strong></div></div>
+          <div class="evidence-grid" id="evidence"><div class="empty"><div class="empty-symbol">◎</div><h4>The interesting part starts with a question.</h4><p>Try a sample to see the experience, or inspect selected information from your own browser.</p><span>Each result comes with its source and its limits.</span></div></div>
+          <div class="explanation"><span class="explain-icon">i</span><p><strong>A clue is not a conclusion.</strong> A network provider is not your employer. A browser pattern is not your name. Missing information stays missing.</p></div>
+        </div>
+      </div>
+    </section>
+
+    <section class="receipt-section" aria-labelledby="receipt-title"><div class="receipt-head"><div><p class="eyebrow">NO MYSTERY BEHIND THE REVEAL</p><h2 id="receipt-title">Your experiment receipt</h2></div><button class="button secondary" id="export">Preview redacted export <span>↓</span></button></div><div class="receipt-grid" id="receipts"><p class="muted">Checks you choose will appear here, including their destinations and storage notes.</p></div></section>
+
+    <section id="how" class="how"><div><p class="eyebrow">HOW WE THINK ABOUT EVIDENCE</p><h2>Look closer.<br>Jump to fewer conclusions.</h2></div><div class="how-item"><span>01</span><h3>Know the source</h3><p>Browser reports, server observations and public databases describe different things. We label the difference.</p></div><div class="how-item"><span>02</span><h3>Keep the limits</h3><p>Shared networks, privacy settings and missing records matter. An estimate stays an estimate.</p></div><div class="how-item"><span>03</span><h3>Choose the depth</h3><p>Start locally. Extra network requests need an explicit choice. No passwords or personal information forms.</p></div></section>
+  </main>
+  <footer><a class="brand" href="/">layerlens<span> / lab</span></a><p>Built to explain the evidence, not invent an identity.</p><span>Research prototype · v0.1.0</span></footer>
+  <dialog id="modal"><div class="modal-top"><h2 id="modal-title">Privacy notes</h2><button id="modal-close" class="text-button" aria-label="Close dialog">Close ×</button></div><div id="modal-content"></div></dialog>
+  <script type="module" src="/app.mjs"></script>
+</body>
+</html>

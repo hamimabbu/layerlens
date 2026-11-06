@@ -1,0 +1,9 @@
+node_modules/
+.env
+certs/*
+!certs/.gitkeep
+*.pcap
+*.pcapng
+*.log
+coverage/
+.DS_Store

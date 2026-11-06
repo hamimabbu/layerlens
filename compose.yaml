@@ -1,0 +1,14 @@
+services:
+  layerlens:
+    build: .
+    ports:
+      - "127.0.0.1:8787:8787"
+    environment:
+      HOST: 0.0.0.0
+      ENABLE_EXTERNAL_LOOKUPS: ${ENABLE_EXTERNAL_LOOKUPS:-false}
+      ENABLE_INTERNETDB: ${ENABLE_INTERNETDB:-false}
+      DNS_RESOLVERS: ${DNS_RESOLVERS:-}
+    read_only: true
+    cap_drop: [ALL]
+    security_opt: [no-new-privileges:true]
+    restart: unless-stopped
