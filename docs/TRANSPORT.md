@@ -26,11 +26,11 @@ The upstream documented invocation is:
 ./fingerproxy -listen-addr :8443 -forward-url http://127.0.0.1:8787
 ```
 
-Configure its certificate and deployment using the matching upstream release documentation. Publish only the intended HTTPS diagnostic endpoint; protect direct access to the application. Use a browser-trusted certificate and appropriate production port. No commands from the supplied PDF were executed.
+Use the matching upstream release documentation to configure the certificate and deployment. Publish the intended HTTPS diagnostic endpoint and protect direct access to the application. Real TLS operation still needs testing with a browser-trusted certificate and the intended production port.
 
 The interface requests `TRANSPORT_ORIGIN/api/transport` only after the transport button. It uses JSON POST, CORS restricted to `APP_ORIGIN`, and `credentials: omit`. There is no preconnect or automatic hidden probe. The application accepts JA3/JA4/HTTP2 headers only when the immediate peer is trusted. The single ingress is expected to append the actual client address at the right of `X-Forwarded-For`; verify this and header overwrite behaviour with the pinned upstream version before exposing it.
 
-The diagnostic endpoint is a separate listener path, not an upstream proxy to a public echo service. Forward only to our local application. Do not use the PDF's external httpbin target for visitor traffic: that would forward their request to another recipient.
+Forward diagnostic requests to the local LayerLens application. Using an external echo service such as httpbin would send the visitor's request to another recipient.
 
 ## Verification before public use
 
@@ -40,6 +40,6 @@ The diagnostic endpoint is a separate listener path, not an upstream proxy to a 
 4. Confirm only its explicit button initiates the request and browser cookies are omitted.
 5. Confirm the UI labels missing fingerprints unavailable. Cached/resumed handshakes and HTTP/2 connection coalescing can affect evidence.
 6. Review request, metrics, access and error logs. Do not retain full raw headers, tokens or packet payloads.
-7. Audit dependencies in the selected Fingerproxy release. Upstream throughput claims are not our benchmark.
+7. Audit dependencies in the selected Fingerproxy release. This project includes no throughput benchmark.
 
 HTTP/3, exact OS identification and reliable host uptime are not claimed. p0f/JA4T are not running in this build. JA4 TLS and all JA4+ implementations do not share one universal licence; in particular, do not substitute FoxIO's separate NGINX module without reviewing its hosting terms.

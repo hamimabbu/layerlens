@@ -1,109 +1,91 @@
 # LayerLens
 
-**Your connection, explained.** A standalone visitor-controlled browser and network evidence lab.
+LayerLens shows what a browser and an ordinary network connection can reveal. Browser checks run in the tab. A small Node.js server handles connection checks and optional public-record lookups.
 
-> You haven't introduced yourself. What can an ordinary connection still reveal?
-
-LayerLens is a working research prototype with an original interface, collection workflow, evidence model and privacy receipt. It uses selected native browser APIs and a small dependency-free Node service. An optional Linux Fingerproxy ingress adds real JA3, JA4 and HTTP/2 evidence. Public DNS, registry and historical-IP checks require both operator configuration and a visitor's explicit choice.
+Each result lists its source, when it was retrieved and what it can tell you. A shared IP address or a network registration record describes a connection, not the person using it.
 
 ![LayerLens sample dashboard](docs/preview-desktop.png)
 
 ## Run locally
 
-Requires Node.js 22 or newer. No package installation or API key is needed for the core app.
+Requires Node.js 22 or newer. The core app has no package dependencies and needs no API key.
 
 ```sh
 npm start
 ```
 
-Open **http://127.0.0.1:8787**.
+Open http://127.0.0.1:8787. The server binds to loopback by default.
 
 ```sh
 npm run check
 npm test
 ```
 
-The default server binds to loopback. The sample works without any external lookup. Browser checks remain in the tab; the configuration request contains deployment policy, not a request to enrich the visitor.
+## What you can try
 
-## What works
-
-| Feature | Status / source |
+| Check | How it works |
 | --- | --- |
-| Labelled sample exploration | Implemented; synthetic fixtures and reserved example addresses |
-| Selected browser settings | Implemented; native APIs, computed locally after a click |
-| Optional coarse hardware hints | Implemented; browser-reported, unsupported values remain unavailable |
-| Optional local attribute pattern | Implemented; SHA-256 over selected values, never presented as a unique person |
-| Connection report | Implemented; socket address or explicitly trusted ingress |
-| Privacy receipt and reset | Implemented; tab results, actual selected checks and recipient notes |
-| Previewable redacted JSON export | Implemented; remaining combinations can still be identifying |
-| PTR / RDAP / InternetDB adapters | Implemented, disabled by default; live third-party queries have not been benchmarked or accuracy-tested |
-| Separate Fingerproxy diagnostic endpoint | Adapter and consent flow implemented; real TLS deployment requires the setup below |
-| p0f sensor / packet capture | Research extension only; not installed, run or advertised as working |
+| Sample mode | Shows made-up data without running a lookup. |
+| Browser settings | Reads selected settings in the tab after a click. Optional hardware hints can be unavailable in some browsers. |
+| Local attribute pattern | Computes a SHA-256 hash of selected browser values. It does not establish a unique identity. |
+| Connection check | Returns the socket address or the address supplied by a configured, trusted ingress. |
+| Public records | Looks up PTR, RDAP or InternetDB records after the operator enables a source and the visitor selects it. These checks are off by default. |
+| Export and reset | Previews a redacted JSON export. Reset clears the tab's results. |
+| Transport diagnostic | Supports a separate Fingerproxy endpoint for JA3, JA4 and HTTP/2 metadata. A real TLS deployment still needs testing. |
 
-Unavailable TLS evidence is **not fabricated**. In direct local HTTP mode, the app shows its application-side connection and explicitly says that transport fingerprints need a configured ingress.
+Browser results stay in the tab. The initial configuration request reads deployment settings; it does not run an address lookup. Missing transport data stays unavailable. In local HTTP mode, the connection report describes the application-side connection.
 
-## Linux deployment
+## Optional public-record lookups
 
-```sh
-docker compose up --build
-```
-
-The container runs as a non-root user with a read-only filesystem and dropped capabilities. The published port is loopback-only. Add a correctly configured HTTPS ingress for a public deployment. Docker has not been available in the development environment, so this deployment needs verification on your Linux host before publication.
-
-To enable chosen public-record sources, copy `.env.example` to `.env` and configure the relevant settings. Docker Compose reads `.env`; for direct Node use:
+Copy `.env.example` to `.env` and configure the sources you want to enable. For direct Node use:
 
 ```sh
 node --env-file=.env server/index.mjs
 ```
 
-`ENABLE_EXTERNAL_LOOKUPS=true` enables the operator side of the gate. PTR additionally needs explicit `DNS_RESOLVERS`. InternetDB additionally needs `ENABLE_INTERNETDB=true`; it is documented as free for noncommercial use. The visitor must then choose a configured source and approve its recipient in the interface. Nothing scans their services.
+- `ENABLE_EXTERNAL_LOOKUPS=true` enables the public-record adapters.
+- PTR also needs `DNS_RESOLVERS`.
+- InternetDB also needs `ENABLE_INTERNETDB=true`. Its publisher documents free noncommercial use; check the terms before deployment.
 
-Local/private/reserved addresses are rejected **before** any external lookup. An empty provider result is not proof of safety.
+The visitor must select a configured source and approve its recipient before the lookup runs. Local, private and reserved addresses are rejected before an external request. InternetDB returns existing indexed records; this app does not scan visitors' services. An empty result does not establish that a connection is safe.
 
-## Real transport evidence with Fingerproxy
+## Optional deployment
 
-See [the integration guide](docs/TRANSPORT.md). We selected [wi1dcard/fingerproxy](https://github.com/wi1dcard/fingerproxy), Apache-2.0, because it provides a Go TLS ingress and structured fingerprint headers. The inspected release was v1.2.3; review dependencies and current upstream advisories before deployment.
-
-Use a **dedicated first-party diagnostic hostname** with valid HTTPS. Do not route ordinary visitors through a capture experiment before they choose it. The main app requests the diagnostic endpoint only after its separate button is pressed, with browser cookies omitted.
-
-Only explicitly trusted proxy peer addresses can supply fingerprints. A terminating CDN in front of the diagnostic host changes the observed client; a forwarded IP cannot reconstruct the original TCP/TLS handshake.
-
-## What makes the project ours
-
-- A consistent evidence record with source, subject, assertion type, limitations and timestamps.
-- A clear sample/local/connection/public-record separation.
-- An explicit preflight choice and a receipt for each selected check.
-- A separate, opt-in transport observation path with trusted-source validation.
-- Careful handling of shared IPs, missing data, private addresses, malformed sources and redacted exports.
-- An original accessible interface and a reproducible security test suite.
-
-Research references and integrated components are credited in [SOURCES.md](docs/SOURCES.md). This repository is not a claim to have invented fingerprinting, DNS or the integrated upstream tools.
-
-## Repository
-
-```text
-public/                 Interface and native browser collectors
-public/report.mjs       Shared export redaction, including DNS resolver receipts
-server/index.mjs        API, consent gates, trusted ingress and short-lived quotas
-server/evidence.mjs     IP classification, evidence records, redaction helpers
-server/collectors.mjs   Constrained PTR, RDAP and InternetDB adapters
-tests/                  Security and integration tests using local fixtures
-docs/                   Architecture, threat model, sources and transport setup
-compose.yaml            Linux container deployment
+```sh
+docker compose up --build
 ```
 
-## Verification and limits
+Compose reads `.env`. The container configuration uses a non-root user, a read-only filesystem and dropped capabilities, with a loopback-only published port. Docker execution has not been verified. Test it on the intended host and configure HTTPS before public use.
 
-The 20 automated checks cover IP parsing, mapped IPv6, reserved ranges, trusted forwarding, fingerprint validation, RDAP destination selection, HTTP response limits, IPv4/IPv6 resolver redaction, consent, same-origin policy, disabled collectors, configured lookup names, JSON content types, local-address rejection and API quotas. GitHub Actions runs the suite on Node.js 22 and 24. Browser verification is recorded in `docs/VALIDATION.md`.
+For transport fingerprints, see the [Fingerproxy setup guide](docs/TRANSPORT.md). The integration uses [wi1dcard/fingerproxy](https://github.com/wi1dcard/fingerproxy), licensed under Apache-2.0. The version reviewed for the guide was v1.2.3.
 
-No results database, analytics SDK, cookies or persistent browser identifiers are included. Ordinary hosting still sees request IPs/headers; configure proxy, hosting and security logs separately. Hashed rate counters live for at most 61 seconds. Reset clears the tab's results, not records already held by another provider. This is a prototype, not a security audit or a promise of absolute privacy.
+Use a separate diagnostic hostname with valid HTTPS. The app contacts it only after the transport button is pressed and omits browser cookies. Only trusted proxy peers can supply fingerprint headers. A TLS-terminating CDN changes the connection being measured, so it needs separate consideration during setup.
 
-The app cannot infer a person's real name, email, employer or private computer name from an ordinary visit. A PTR record is not a PC name. An OS guess is not a verified inventory. A CVE association indexed for a shared exit IP is not a diagnosis of the visitor's laptop.
+## Tests and limits
 
-## GitHub
+The 20 automated tests cover address parsing, trusted headers, lookup selection, consent, response limits, redaction and API behaviour. GitHub Actions runs them on Node.js 22 and 24. The [validation record](docs/VALIDATION.md) includes the browser checks and remaining gaps.
 
-Source repository: **[hamimabbu/layerlens](https://github.com/hamimabbu/layerlens)**. Keep `.env`, certificates, private keys, packet captures and logs out of Git. Publishing this source does not automatically deploy a public telemetry service.
+Live DNS, RDAP and InternetDB accuracy and availability have not been measured. Real Fingerproxy TLS and Docker execution remain unverified. p0f packet capture is a possible extension and is not implemented.
+
+The app has no results database, analytics SDK, cookies or persistent browser identifiers. Server results last for the request; browser results stay in memory. Hashed rate counters are removed within 61 seconds. Hosting and proxy logs need their own configuration, and reset cannot remove records held by a provider.
+
+Export redaction reduces the information shared, but remaining values can still be identifying. A PTR name is not a private computer name, and a CVE linked to a shared exit IP does not confirm a vulnerability on the visitor's laptop.
+
+## Code
+
+```text
+public/                 Interface and browser collectors
+public/report.mjs       Export redaction shared with the server
+server/index.mjs        API, consent checks, trusted ingress and quotas
+server/evidence.mjs     Address parsing and evidence records
+server/collectors.mjs   PTR, RDAP and InternetDB adapters
+tests/                  Unit and local integration tests
+docs/                   Architecture, setup, sources and test notes
+compose.yaml            Container configuration
+```
+
+See the [architecture](docs/ARCHITECTURE.md), [threat model](docs/THREAT-MODEL.md) and [sources](docs/SOURCES.md) for more detail. Keep `.env`, certificates, private keys, captures and logs out of Git. Publishing the repository does not deploy the app.
 
 ## Licence
 
-Original LayerLens code: MIT. Optional tools and datasets retain their separate upstream licences and terms. Preserve their licences/notices if you distribute their binaries or adapted code.
+LayerLens code is licensed under MIT. Optional tools and datasets keep their own licences and terms. Preserve their notices when distributing their code or binaries.

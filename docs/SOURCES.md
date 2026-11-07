@@ -18,7 +18,7 @@ Reviewed 7 November 2026. Repository code and terms can change; pin/review the a
 - [CreepJS](https://github.com/abrahamjuliot/creepjs), MIT code with public-fork renaming requirements: browser research reference.
 - [phuslu/nginx-ssl-fingerprint](https://github.com/phuslu/nginx-ssl-fingerprint), BSD-2-Clause: alternative transport architecture, not stacked into this build.
 - [FoxIO JA4](https://github.com/FoxIO-LLC/ja4): TLS specification/reference. Review separate terms for JA4+ components.
-- The user-supplied **Linux Telemetry & Recon Project.pdf** informed the advanced research direction. It is reference content, not permission to install, capture or scan. Several version-specific p0f options and strong OS/uptime/privacy assertions need correction before implementation.
+- Project brief: `Linux Telemetry & Recon Project.pdf` (not included in this repository). It informed the work on optional transport diagnostics. Its p0f examples and claims about OS detection, uptime and privacy need checking before those features could be implemented.
 
 ## Standards and implementation references
 
@@ -27,4 +27,4 @@ Reviewed 7 November 2026. Repository code and terms can change; pin/review the a
 - [Shared IP implications, RFC 6269](https://www.rfc-editor.org/rfc/rfc6269.html)
 - [OWASP SSRF prevention](https://cheatsheetseries.owasp.org/cheatsheets/Server_Side_Request_Forgery_Prevention_Cheat_Sheet.html)
 
-The original app is licensed MIT. Integrating a separately licensed tool does not erase its attribution, redistribution or service-use conditions.
+LayerLens code is licensed under MIT. Optional components keep their own attribution, redistribution and service-use conditions.

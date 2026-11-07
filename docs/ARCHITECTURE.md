@@ -34,6 +34,6 @@ Fingerprints and address records remain different subjects. The app does not cal
 
 ## Extension decisions
 
-The public-facing build is a small original app rather than a wholesale MyIP fork. MyIP and CreepJS informed the research; no code from them was copied. Optional Fingerproxy is the actual transport integration. Do not stack multiple TLS terminators and assume they all see the original browser.
+MyIP and CreepJS informed the research; their application code is not included in LayerLens. Fingerproxy is the optional transport integration. A TLS terminator changes the connection seen by the next hop, so the diagnostic ingress needs to receive the browser's connection directly.
 
-p0f is a future isolated sensor, not an always-on default. Before implementing it, select the exact v3 API/header definitions, constrain capture to a dedicated experiment, drop capture privileges, test modern signatures and avoid persistent raw captures. The uploaded brief mixed v2 and v3 flags; it is not an installation script.
+p0f is a possible extension and is not implemented. Adding it would need a check of the v3 API and command-line options, a separate capture experiment, reduced capture privileges and tests against current signatures. Raw captures should not be retained by default.
