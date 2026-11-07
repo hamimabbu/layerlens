@@ -1,5 +1,7 @@
 # LayerLens
 
+[![Check](https://github.com/hamimabbu/layerlens/actions/workflows/check.yml/badge.svg)](https://github.com/hamimabbu/layerlens/actions/workflows/check.yml)
+
 LayerLens shows what a browser and an ordinary network connection can reveal. Browser checks run in the tab. A small Node.js server handles connection checks and optional public-record lookups.
 
 Each result lists its source, when it was retrieved and what it can tell you. A shared IP address or a network registration record describes a connection, not the person using it.
@@ -55,17 +57,19 @@ The visitor must select a configured source and approve its recipient before the
 docker compose up --build
 ```
 
-Compose reads `.env`. The container configuration uses a non-root user, a read-only filesystem and dropped capabilities, with a loopback-only published port. Docker execution has not been verified. Test it on the intended host and configure HTTPS before public use.
+Compose reads `.env` and passes every setting from `.env.example` to the container, except `HOST` and `PORT`. The container configuration uses a non-root user, a read-only filesystem and dropped capabilities, with a loopback-only published port. The setup was built and run once on Linux with Docker Engine 29.9.2 (see the [validation record](docs/VALIDATION.md)). Test it on the intended host and configure HTTPS before public use.
 
 For transport fingerprints, see the [Fingerproxy setup guide](docs/TRANSPORT.md). The integration uses [wi1dcard/fingerproxy](https://github.com/wi1dcard/fingerproxy), licensed under Apache-2.0. The version reviewed for the guide was v1.2.3.
 
 Use a separate diagnostic hostname with valid HTTPS. The app contacts it only after the transport button is pressed and omits browser cookies. Only trusted proxy peers can supply fingerprint headers. A TLS-terminating CDN changes the connection being measured, so it needs separate consideration during setup.
 
+The server has fixed limits in `server/index.mjs`: request bodies up to 4 KB, 20 API calls per visitor per minute (IPv6 visitors share one allowance per /64 range) and 10 seconds for a request to finish arriving. A public deployment still needs connection and bandwidth limits at its ingress.
+
 ## Tests and limits
 
-The 20 automated tests cover address parsing, trusted headers, lookup selection, consent, response limits, redaction and API behaviour. GitHub Actions runs them on Node.js 22 and 24. The [validation record](docs/VALIDATION.md) includes the browser checks and remaining gaps.
+The automated tests cover address parsing and classification, trusted headers, lookup selection, consent, response limits, redaction, the responses of every route, request and rate limits, and how the page handles server answers it cannot read. GitHub Actions runs them on Node.js 22 and 24. The [validation record](docs/VALIDATION.md) includes the browser checks and remaining gaps.
 
-Live DNS, RDAP and InternetDB accuracy and availability have not been measured. Real Fingerproxy TLS and Docker execution remain unverified. p0f packet capture is a possible extension and is not implemented.
+Live DNS, RDAP and InternetDB accuracy and availability have not been measured. RDAP and InternetDB were tried against the live services in the second test pass. Reverse DNS has only run against a local test server, and real Fingerproxy TLS remains unverified. p0f packet capture is a possible extension and is not implemented.
 
 The app has no results database, analytics SDK, cookies or persistent browser identifiers. Server results last for the request; browser results stay in memory. Hashed rate counters are removed within 61 seconds. Hosting and proxy logs need their own configuration, and reset cannot remove records held by a provider.
 
@@ -74,14 +78,17 @@ Export redaction reduces the information shared, but remaining values can still 
 ## Code
 
 ```text
-public/                 Interface and browser collectors
-public/report.mjs       Export redaction shared with the server
-server/index.mjs        API, consent checks, trusted ingress and quotas
-server/evidence.mjs     Address parsing and evidence records
-server/collectors.mjs   PTR, RDAP and InternetDB adapters
-tests/                  Unit and local integration tests
-docs/                   Architecture, setup, sources and test notes
-compose.yaml            Container configuration
+public/                     Page, styles and interface code
+public/browser-checks.mjs   Checks that run in the tab
+public/content.mjs          Page wording and sample data
+public/answers.mjs          Checks server answers before the page shows them
+public/report.mjs           Export redaction shared with the server
+server/index.mjs            API, consent checks, trusted ingress and quotas
+server/evidence.mjs         Address parsing and evidence records
+server/collectors.mjs       PTR, RDAP and InternetDB adapters
+tests/                      Unit and local integration tests
+docs/                       Architecture, setup, sources and test notes
+compose.yaml                Container configuration
 ```
 
 See the [architecture](docs/ARCHITECTURE.md), [threat model](docs/THREAT-MODEL.md) and [sources](docs/SOURCES.md) for more detail. Keep `.env`, certificates, private keys, captures and logs out of Git. Publishing the repository does not deploy the app.

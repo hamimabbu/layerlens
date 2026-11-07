@@ -24,10 +24,16 @@ Each evidence record has `field`, `value`, `source`, `subject`, `kind`, `state`,
 
 Fingerprints and address records remain different subjects. The app does not call a mismatch deception, a bot or a verified OS. Future correlation needs per-connection provenance and ground-truth tests; a public IP alone cannot distinguish multiple browsers behind NAT.
 
+## Page modules
+
+The page is plain ES modules with no build step. `app.mjs` draws the interface and talks to the server. `browser-checks.mjs` holds the checks that run in the tab, `content.mjs` holds the wording and the sample data, `answers.mjs` checks every server answer before the page shows it, and `report.mjs` redacts exports.
+
+An answer with the wrong shape ends in a short error message. Text from the server is cut to 2,000 characters and is only ever shown as text.
+
 ## Data and retention
 
 - Application results: request-scoped on the server; in-memory in the tab.
-- Rate limiter: process-keyed HMAC counters, physically removed within 61 seconds; process key is regenerated on restart.
+- Rate limiter: process-keyed HMAC counters, physically removed within 61 seconds; process key is regenerated on restart. IPv6 visitors are counted per /64 range, and at most 2,000 visitors are tracked. When that table is full, new visitors get a 429 response until entries expire.
 - IANA bootstrap: public reference dataset cached for up to one day.
 - No visitor result database, cookies, localStorage, service worker or analytics SDK.
 - Hosting, DNS, RIR, optional Shodan and ingress logs remain separate processors/configuration responsibilities.
