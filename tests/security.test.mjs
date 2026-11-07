@@ -1,7 +1,7 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { normalizeIP, isPublicIP, connectionContext, redactReport } from '../server/evidence.mjs';
-import { registryURL, fetchJSON } from '../server/collectors.mjs';
+import { registryURL, fetchJSON, internetdb } from '../server/collectors.mjs';
 import { createApp, settings } from '../server/index.mjs';
 
 test('address normalization handles mapped IPv6 without accepting arbitrary text', () => {
@@ -104,4 +104,55 @@ test('transport endpoint requires explicit operator origin and a trusted peer', 
   const response = await post(base+'/api/transport',{consent:true},{origin:'https://lab.example.invalid','x-ja4-fingerprint':'t13_example','x-forwarded-for':'1.1.1.1'});
   assert.equal(response.status,200); assert.equal(response.headers.get('access-control-allow-origin'),'https://lab.example.invalid');
   const data = await response.json(); assert.equal(data.trustedTransport,true); assert.equal(data.evidence.find(x=>x.field==='JA4 fingerprint').value,'t13_example');
+});
+
+test('InternetDB retains valid CVE identifiers and drops malformed values', async t => {
+  t.mock.method(globalThis, 'fetch', async () => Response.json({
+    vulns: ['CVE-2025-1234', 'cve-2024-12345', 'CVE-2025-nope', '<script>', null]
+  }));
+  const result = await internetdb('1.1.1.1');
+  assert.equal(result.evidence.find(row => row.field === 'Unconfirmed CVE associations').value,
+    'CVE-2025-1234, cve-2024-12345');
+});
+
+test('unconfigured collector names never pass the API gate through object prototypes', async t => {
+  const base = await app(t, { external: true });
+  for (const check of ['constructor', 'toString', '__proto__', null, {}, ['rdap']]) {
+    const response = await post(base + '/api/enrich', {
+      consent: true, publicRecordsConsent: true, checks: [check]
+    }, { 'x-forwarded-for': '1.1.1.1' });
+    assert.equal(response.status, 400);
+    assert.match((await response.json()).error, /Select only configured checks/);
+  }
+});
+
+test('browser export redacts IPv4 and IPv6 resolver receipts and preserves source state', () => {
+  const source = {
+    evidence: [{ field: 'Reported browser', value: 'Private browser details' }],
+    receipts: [
+      { check: 'ptr · complete', recipients: ['2001:4860:4860::8888, 1.1.1.1'] },
+      { check: 'rdap · complete', recipients: ['rdap.apnic.net'] }
+    ]
+  };
+  const result = redactReport(source);
+  assert.equal(result.evidence[0].value, '[redacted]');
+  assert.deepEqual(result.receipts[0].recipients, ['[resolver redacted]']);
+  assert.deepEqual(result.receipts[1].recipients, ['rdap.apnic.net']);
+  assert.equal(source.evidence[0].value, 'Private browser details');
+  assert.equal(source.receipts[0].recipients[0], '2001:4860:4860::8888, 1.1.1.1');
+});
+
+test('browser redaction module is available from the app', async t => {
+  const base = await app(t);
+  const response = await fetch(base + '/report.mjs');
+  assert.equal(response.status, 200);
+  assert.match(response.headers.get('content-type'), /javascript/);
+  assert.match(await response.text(), /export function redactReport/);
+});
+
+test('similar media type names are not accepted as JSON', async t => {
+  const base = await app(t);
+  assert.equal((await post(base + '/api/connection', { consent: true }, {
+    'content-type': 'application/jsonp'
+  })).status, 415);
 });

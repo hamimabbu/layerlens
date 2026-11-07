@@ -83,6 +83,7 @@ Research references and integrated components are credited in [SOURCES.md](docs/
 
 ```text
 public/                 Interface and native browser collectors
+public/report.mjs       Shared export redaction, including DNS resolver receipts
 server/index.mjs        API, consent gates, trusted ingress and short-lived quotas
 server/evidence.mjs     IP classification, evidence records, redaction helpers
 server/collectors.mjs   Constrained PTR, RDAP and InternetDB adapters
@@ -93,7 +94,7 @@ compose.yaml            Linux container deployment
 
 ## Verification and limits
 
-Automated checks cover IP parsing, mapped IPv6, reserved ranges, trusted forwarding, fingerprint validation, RDAP destination selection, HTTP response limits, redaction, consent, same-origin policy, disabled collectors, local-address rejection and API quotas. Browser verification is recorded in `docs/VALIDATION.md`.
+The 20 automated checks cover IP parsing, mapped IPv6, reserved ranges, trusted forwarding, fingerprint validation, RDAP destination selection, HTTP response limits, IPv4/IPv6 resolver redaction, consent, same-origin policy, disabled collectors, configured lookup names, JSON content types, local-address rejection and API quotas. GitHub Actions runs the suite on Node.js 22 and 24. Browser verification is recorded in `docs/VALIDATION.md`.
 
 No results database, analytics SDK, cookies or persistent browser identifiers are included. Ordinary hosting still sees request IPs/headers; configure proxy, hosting and security logs separately. Hashed rate counters live for at most 61 seconds. Reset clears the tab's results, not records already held by another provider. This is a prototype, not a security audit or a promise of absolute privacy.
 

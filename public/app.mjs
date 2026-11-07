@@ -1,3 +1,5 @@
+import { redactReport } from './report.mjs';
+
 const $ = id => document.getElementById(id);
 const state = { layer: 'browser', mode: 'idle', groups: { browser: [], connection: [], records: [] }, receipts: [], busy: false, config: null, generation: 0 };
 const labels = { browser: ['LOCAL BROWSER', 'A few facts. Their whole story.', 'A look around your browser', 'These selected checks run in this tab. Their results do not need to be sent to our server.', 'Run browser check'], connection: ['FIRST-PARTY CONNECTION', 'Your connection, with context.', 'A first-party connection check', 'Our server sees the connection address in an ordinary request. This check shows it to you. Transport patterns need a configured, trusted Fingerproxy ingress.', 'Inspect my connection'], records: ['OPTIONAL PUBLIC RECORDS', 'Public records are not a person.', 'Choose the sources first', 'These checks send your public connection address to the recipients listed below. The operator must configure them before they can run.', 'Run selected lookups'] };
@@ -128,8 +130,7 @@ function privacy() {
 function exportPreview() {
   const all = Object.values(state.groups).flat();
   if (!all.length) { status('Run a check or load a sample before exporting.'); return; }
-  const sensitive = /address|fingerprint|pattern|reverse dns|allocation range|timezone|display|language|browser|renderer|model|hostname/i;
-  const data = { project:'LayerLens',mode:state.mode,exportedAt:new Date().toISOString(),notice:'Redacted, not guaranteed anonymous. Preview before sharing.',evidence:all.map(r => ({...r,value:sensitive.test(r.field) ? '[redacted]' : r.value})),receipts:state.receipts.map(r => ({...r,recipients:r.recipients.map(x => /^\d/.test(x) ? '[resolver redacted]' : x)})) };
+  const data = redactReport({ project:'LayerLens',mode:state.mode,exportedAt:new Date().toISOString(),evidence:all,receipts:state.receipts });
   const text = JSON.stringify(data,null,2); const pre = node('pre',text); const download = node('button','Download this JSON','button primary');
   download.addEventListener('click',() => { const url = URL.createObjectURL(new Blob([text],{type:'application/json'})); const a = node('a'); a.href = url; a.download = 'layerlens-redacted.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000); });
   modal('Preview before you share',[node('p','Exact connection identifiers and selected browser details have been removed. Remaining combinations can still be revealing.'),pre,download]);
@@ -144,4 +145,5 @@ select('browser');
 fetch('/api/config',{cache:'no-store'}).then(r => r.json()).then(config => {
   state.config = config;
   document.querySelectorAll('input[name="record"]').forEach(el => { el.disabled = !config.checks[el.value]; $('recipient-' + el.value).textContent = config.checks[el.value] ? config.recipients[el.value] : 'Operator has not enabled this check'; });
+  select(state.layer);
 }).catch(() => { document.querySelectorAll('input[name="record"]').forEach(el => { el.disabled = true; }); status('Configuration unavailable. Sample and local browser checks remain available.'); });
