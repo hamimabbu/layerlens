@@ -4,6 +4,7 @@
 
 - Node.js syntax checks pass.
 - Automated unit/integration tests pass on the development Windows host with local-network permission.
+- The expanded 20-test suite passes locally on Node.js 26.13.0. It adds lookup-name validation, JSON media type validation, InternetDB fixture parsing, shared browser/server redaction and the browser module route. CI also targets Node.js 22 and 24; consult the latest run for those results.
 - The same 15 tests and syntax checks passed on GitHub Actions' Ubuntu runner: [initial source verification](https://github.com/hamimabbu/layerlens/actions/runs/42315502843).
 - Test requests use local servers and synthetic fixtures; the suite does not call public lookup providers or scan real visitors.
 
@@ -21,6 +22,16 @@ Checked with the available Chromium automation browser on 7 November 2026:
 - Desktop and mobile sample screenshots: `preview-desktop.png`, `preview-mobile.png`.
 
 These are limited prototype checks, not a guarantee about all browsers or production infrastructure.
+
+The fixes were checked again on 7 November 2026 using a temporary headless Chromium browser and the real local API:
+
+- Sample mode, reset, the six-field browser check and the connection check completed.
+- Export previews redacted the browser and connection address values.
+- Optional lookup controls remained disabled under the default configuration. No requests left the local origin.
+- A connection view selected before a delayed configuration response showed the transport choice after the configuration arrived.
+- The 390px viewport had no horizontal overflow, and no browser console errors were reported.
+
+The DNS resolver export cases use local IPv4/IPv6 fixtures in the automated suite; no resolver query was needed for those checks.
 
 ## Not verified here
 

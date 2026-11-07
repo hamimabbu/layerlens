@@ -74,11 +74,4 @@ export function evidence(field, value, source, limitation, extra = {}) {
   return { field, value, source, limitation, kind: 'provider-reported', subject: 'public connection', state: value == null ? 'unavailable' : 'available', retrievedAt: new Date().toISOString(), sourceObservedAt: null, ...extra };
 }
 
-export function redactReport(report) {
-  const copy = structuredClone(report);
-  copy.evidence = (copy.evidence || []).map(row => {
-    if (/address|fingerprint|pattern|reverse dns|allocation range|latitude|longitude|timezone|resolution|display|language|user agent|renderer|model/i.test(row.field)) return { ...row, value: '[redacted]', redacted: true };
-    return row;
-  });
-  return { ...copy, redacted: true, notice: 'Preview before sharing. Redaction does not guarantee anonymity.' };
-}
+export { redactReport } from '../public/report.mjs';
