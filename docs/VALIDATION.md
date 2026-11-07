@@ -29,7 +29,7 @@ No requests left the local origin, and no browser console errors were reported.
 
 ## Second pass
 
-A second review added tests, fixed the problems it found and checked the page again in a browser. It ran on Linux with Node.js 22.23.4. It has not been run on Windows.
+A second review added tests, fixed the problems it found and checked the page again in a browser. It ran on Linux with Node.js 22.23.4, and the tests also ran on Node.js 24.22.2. It has not been run on Windows. The same suite passed on GitHub's Linux runner with Node.js 22 and 24: [test run](https://github.com/hamimabbu/layerlens/actions/runs/42338582624).
 
 ### Automated tests
 
