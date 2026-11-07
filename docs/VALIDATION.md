@@ -4,6 +4,7 @@
 
 - Node.js syntax checks pass.
 - Automated unit/integration tests pass on the development Windows host with local-network permission.
+- The same 15 tests and syntax checks passed on GitHub Actions' Ubuntu runner: [initial source verification](https://github.com/hamimabbu/layerlens/actions/runs/42315502843).
 - Test requests use local servers and synthetic fixtures; the suite does not call public lookup providers or scan real visitors.
 
 ## Browser verification
@@ -23,7 +24,7 @@ These are limited prototype checks, not a guarantee about all browsers or produc
 
 ## Not verified here
 
-- Docker/Linux execution: Docker is not installed; WSL access was unavailable.
+- Docker image/Compose execution: Docker is not installed locally; WSL access was unavailable. The Node core was separately verified on the GitHub Actions Linux runner.
 - Real Fingerproxy TLS handshakes and upstream dependency compatibility.
 - p0f packet capture (not implemented).
 - Live DNS/RDAP/InternetDB accuracy, speed or availability. Defaults remain disabled.

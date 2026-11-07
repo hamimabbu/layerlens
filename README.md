@@ -101,7 +101,7 @@ The app cannot infer a person's real name, email, employer or private computer n
 
 ## GitHub
 
-The source is ready to put in a new repository. Keep `.env`, certificates, private keys, packet captures and logs out of Git. This project has **not** been published to a GitHub account automatically.
+Source repository: **[hamimabbu/layerlens](https://github.com/hamimabbu/layerlens)**. Keep `.env`, certificates, private keys, packet captures and logs out of Git. Publishing this source does not automatically deploy a public telemetry service.
 
 ## Licence
 
