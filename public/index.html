@@ -9,7 +9,7 @@
 <body>
   <a class="skip" href="#workspace">Skip to the experiment</a>
   <header class="topbar">
-    <a class="brand" href="/" aria-label="LayerLens home"><img src="/mark.svg" width="32" height="32" alt=""><strong>layerlens<span> / lab</span></strong></a>
+    <a class="brand" href="/"><img src="/mark.svg" width="32" height="32" alt=""><strong>layerlens<span> / lab</span></strong></a>
     <nav aria-label="Page navigation"><a href="#workspace">The experiment</a><a href="#how">How it works</a><button id="privacy-open" class="nav-button">Privacy notes <span aria-hidden="true">↗</span></button></nav>
     <span class="edition"><i></i> Independent security project</span>
   </header>
@@ -21,7 +21,7 @@
         <div class="hero-actions"><button class="button primary" id="sample">Explore a sample <span>↗</span></button><button class="button secondary" id="browser-start">Try with my browser <span>→</span></button></div>
         <p class="hero-note"><span class="check-mark">✓</span> No account. Each extra check starts with your choice.</p>
       </div>
-      <div class="hero-art" aria-label="Three layers: browser, connection and public records">
+      <div class="hero-art" role="group" aria-label="Three layers: browser, connection and public records">
         <div class="art-grid"></div><div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
         <div class="central-node"><span class="node-dot"></span><span>YOUR CONNECTION</span><strong>A trail of clues.<br>A person still unknown.</strong><div class="node-tags"><span>Browser</span><span>Network</span><span>Transport</span></div></div>
         <div class="floating-label float-one"><i class="mint-dot"></i> BROWSER-REPORTED <small>Settings ≠ identity</small></div>
@@ -68,7 +68,7 @@
     <section id="how" class="how"><div><p class="eyebrow">HOW WE THINK ABOUT EVIDENCE</p><h2>Look closer.<br>Jump to fewer conclusions.</h2></div><div class="how-item"><span>01</span><h3>Know the source</h3><p>Browser reports, server observations and public databases describe different things. We label the difference.</p></div><div class="how-item"><span>02</span><h3>Keep the limits</h3><p>Shared networks, privacy settings and missing records matter. An estimate stays an estimate.</p></div><div class="how-item"><span>03</span><h3>Choose the depth</h3><p>Start locally. Extra network requests need an explicit choice. No passwords or personal information forms.</p></div></section>
   </main>
   <footer><a class="brand" href="/">layerlens<span> / lab</span></a><p>Built to explain the evidence, not invent an identity.</p><span>Research prototype · v0.1.0</span></footer>
-  <dialog id="modal"><div class="modal-top"><h2 id="modal-title">Privacy notes</h2><button id="modal-close" class="text-button" aria-label="Close dialog">Close ×</button></div><div id="modal-content"></div></dialog>
+  <dialog id="modal" aria-labelledby="modal-title"><div class="modal-top"><h2 id="modal-title">Privacy notes</h2><button id="modal-close" class="text-button" aria-label="Close dialog">Close ×</button></div><div id="modal-content"></div></dialog>
   <script type="module" src="/app.mjs"></script>
 </body>
 </html>

@@ -1,149 +1,467 @@
 import { redactReport } from './report.mjs';
+import { runBrowserChecks } from './browser-checks.mjs';
+import { UNREADABLE, cleanReceipt, cleanRows, plainText } from './answers.mjs';
+import { LAYERS, PRIVACY_INTRO, PRIVACY_SECTIONS, sampleGroups, sampleReceipts } from './content.mjs';
 
-const $ = id => document.getElementById(id);
-const state = { layer: 'browser', mode: 'idle', groups: { browser: [], connection: [], records: [] }, receipts: [], busy: false, config: null, generation: 0 };
-const labels = { browser: ['LOCAL BROWSER', 'A few facts. Their whole story.', 'A look around your browser', 'These selected checks run in this tab. Their results do not need to be sent to our server.', 'Run browser check'], connection: ['FIRST-PARTY CONNECTION', 'Your connection, with context.', 'A first-party connection check', 'Our server sees the connection address in an ordinary request. This check shows it to you. Transport patterns need a configured, trusted Fingerproxy ingress.', 'Inspect my connection'], records: ['OPTIONAL PUBLIC RECORDS', 'Public records are not a person.', 'Choose the sources first', 'These checks send your public connection address to the recipients listed below. The operator must configure them before they can run.', 'Run selected lookups'] };
+const byId = id => document.getElementById(id);
 
-function row(field, value, source, limitation, extra = {}) { return { field, value, source, limitation, kind: 'browser-reported', subject: 'this browser', state: value == null ? 'unavailable' : 'available', retrievedAt: new Date().toISOString(), sourceObservedAt: null, ...extra }; }
-function node(tag, text, className) { const el = document.createElement(tag); if (text != null) el.textContent = text; if (className) el.className = className; return el; }
-function status(text, error = false) { $('status').textContent = text; $('status').classList.toggle('error', error); }
+const state = {
+  layer: 'browser', // the open layer: browser, connection or records
+  mode: 'idle', // idle, sample or live
+  groups: emptyGroups(),
+  receipts: [],
+  busy: false,
+  config: null, // what the operator switched on, from /api/config
+  generation: 0 // goes up on Reset and Sample, so answers that arrive late can be ignored
+};
 
-function select(layer) {
+// Lets Reset and Sample cancel a request that is still running.
+let activeRequest;
+
+function emptyGroups() {
+  return { browser: [], connection: [], records: [] };
+}
+
+// Makes an element and fills it with plain text. textContent never runs HTML, so server text is safe here.
+function node(tag, text, className) {
+  const element = document.createElement(tag);
+  if (text != null) element.textContent = text;
+  if (className) element.className = className;
+  return element;
+}
+
+function setStatus(text, isError = false) {
+  byId('status').textContent = text;
+  byId('status').classList.toggle('error', isError);
+}
+
+// Smooth scrolling is skipped for people who asked their system for less motion.
+function scrollToWorkspace() {
+  const calm = matchMedia('(prefers-reduced-motion: reduce)').matches;
+  byId('workspace').scrollIntoView({ behavior: calm ? 'auto' : 'smooth' });
+}
+
+/* ---------- Talking to the server ---------- */
+
+async function readJSON(response) {
+  try {
+    return await response.json();
+  } catch {
+    return null;
+  }
+}
+
+async function post(path, body, signal) {
+  let response;
+  try {
+    response = await fetch(path, {
+      method: 'POST',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify(body),
+      cache: 'no-store',
+      signal
+    });
+  } catch (error) {
+    if (error.name === 'AbortError') throw error;
+    throw new Error('The server could not be reached.');
+  }
+
+  const result = await readJSON(response);
+  if (!response.ok) throw new Error(result?.error || 'The check could not complete');
+  if (!result || typeof result !== 'object' || Array.isArray(result)) throw new Error(UNREADABLE);
+  return result;
+}
+
+/* ---------- Drawing the page ---------- */
+
+function selectLayer(layer) {
   state.layer = layer;
-  document.querySelectorAll('.layer').forEach(el => { const active = el.dataset.layer === layer; el.classList.toggle('selected', active); el.setAttribute('aria-pressed', String(active)); });
-  const [label,title,choice,description,button] = labels[layer];
-  $('findings-label').textContent = label; $('findings-title').textContent = title; $('choice-title').textContent = choice; $('choice-description').textContent = description;
-  $('run').replaceChildren(node('span', button), node('span', '→')); $('run').disabled = state.busy;
-  $('browser-options').hidden = layer !== 'browser'; $('record-options').hidden = layer !== 'records';
-  $('transport-choice').hidden = layer !== 'connection' || !state.config?.transportOrigin;
+
+  for (const button of document.querySelectorAll('.layer')) {
+    const active = button.dataset.layer === layer;
+    button.classList.toggle('selected', active);
+    button.setAttribute('aria-pressed', String(active));
+  }
+
+  const words = LAYERS[layer];
+  byId('findings-label').textContent = words.label;
+  byId('findings-title').textContent = words.title;
+  byId('choice-title').textContent = words.choice;
+  byId('choice-description').textContent = words.description;
+  byId('run').replaceChildren(node('span', words.button), node('span', '→'));
+  byId('run').disabled = state.busy;
+
+  byId('browser-options').hidden = layer !== 'browser';
+  byId('record-options').hidden = layer !== 'records';
+  byId('transport-choice').hidden = layer !== 'connection' || !state.config?.transportOrigin;
+
   render();
 }
 
 function render() {
   const rows = state.groups[state.layer];
-  const available = rows.filter(r => r.state === 'available').length;
-  $('available-count').textContent = rows.length ? available : '—'; $('unavailable-count').textContent = rows.length ? rows.length - available : '—';
-  $('finding-count').textContent = `${rows.length} finding${rows.length === 1 ? '' : 's'}`;
-  const container = $('evidence'); container.replaceChildren();
-  if (!rows.length) {
-    const empty = node('div', null, 'empty'); empty.append(node('div','◎','empty-symbol'),node('h4','The interesting part starts with a question.'),node('p','Choose a check, or explore a clearly labelled sample. Unavailable information will stay unavailable.'),node('span','Every finding has a source and a limit.')); container.append(empty);
-  }
-  rows.forEach(item => {
-    const card = node('article',null,'evidence-card'); card.append(node('h4',item.field),node('p',item.value == null ? 'Not available' : String(item.value),'evidence-value' + (item.value == null ? ' missing' : '')));
-    const meta = node('div',null,'evidence-meta'); meta.append(node('span'),node('small',(state.mode === 'sample' ? 'SAMPLE · ' : '') + item.kind.toUpperCase())); card.append(meta);
-    const details = node('details'); details.append(node('summary','How did you know?'),node('p',`Source: ${item.source}`),node('p',item.limitation),node('p',`Subject: ${item.subject}. Retrieved ${new Date(item.retrievedAt).toLocaleTimeString()}.`)); card.append(details); container.append(card);
-  });
-  const pill = $('mode'); pill.className = 'mode-pill ' + (state.mode === 'sample' ? 'sample' : state.mode === 'live' ? 'live' : ''); pill.textContent = state.mode === 'sample' ? 'Illustrative sample · not your data' : state.mode === 'live' ? 'Live results · this session' : 'Ready when you are';
-  $('receipts').replaceChildren();
-  if (!state.receipts.length) $('receipts').append(node('p','Checks you choose will appear here, including their destinations and storage notes.','muted'));
-  state.receipts.forEach(receipt => {
-    const el = node('article',null,'receipt-card'); el.append(node('h3',(receipt.sample ? 'Sample · ' : '') + receipt.check));
-    for (const [label,value] of [['Ran on',receipt.execution],['Recipient',receipt.recipients.join(', ')],['Read / sent',receipt.sent.join(', ')],['Retention',receipt.retained]]) { const p = node('p'); p.append(node('strong',label + ': '),document.createTextNode(value)); el.append(p); }
-    $('receipts').append(el);
-  });
+  renderCounts(rows);
+  renderCards(rows);
+  renderModePill();
+  renderReceipts();
 }
 
+function renderCounts(rows) {
+  const available = rows.filter(item => item.state === 'available').length;
+  byId('available-count').textContent = rows.length ? available : '—';
+  byId('unavailable-count').textContent = rows.length ? rows.length - available : '—';
+  byId('finding-count').textContent = `${rows.length} finding${rows.length === 1 ? '' : 's'}`;
+}
+
+function renderCards(rows) {
+  const container = byId('evidence');
+  container.replaceChildren();
+  if (!rows.length) container.append(emptyCard());
+  for (const item of rows) container.append(evidenceCard(item));
+}
+
+function emptyCard() {
+  const empty = node('div', null, 'empty');
+  empty.append(
+    node('div', '◎', 'empty-symbol'),
+    node('h4', 'The interesting part starts with a question.'),
+    node('p', 'Choose a check, or explore a clearly labelled sample. Unavailable information will stay unavailable.'),
+    node('span', 'Every finding has a source and a limit.')
+  );
+  return empty;
+}
+
+function evidenceCard(item) {
+  const missing = item.value == null;
+  const card = node('article', null, 'evidence-card');
+  card.append(
+    node('h4', item.field),
+    node('p', missing ? 'Not available' : String(item.value), 'evidence-value' + (missing ? ' missing' : ''))
+  );
+
+  const meta = node('div', null, 'evidence-meta');
+  meta.append(node('span'), node('small', (state.mode === 'sample' ? 'SAMPLE · ' : '') + item.kind.toUpperCase()));
+  card.append(meta);
+
+  const time = item.retrievedAt ? new Date(item.retrievedAt).toLocaleTimeString() : 'at an unknown time';
+  const details = node('details');
+  details.append(
+    node('summary', 'How did you know?'),
+    node('p', `Source: ${item.source}`),
+    node('p', item.limitation),
+    node('p', `Subject: ${item.subject}. Retrieved ${time}.`)
+  );
+  card.append(details);
+
+  return card;
+}
+
+function renderModePill() {
+  const pill = byId('mode');
+  if (state.mode === 'sample') {
+    pill.className = 'mode-pill sample';
+    pill.textContent = 'Illustrative sample · not your data';
+  } else if (state.mode === 'live') {
+    pill.className = 'mode-pill live';
+    pill.textContent = 'Live results · this session';
+  } else {
+    pill.className = 'mode-pill ';
+    pill.textContent = 'Ready when you are';
+  }
+}
+
+function renderReceipts() {
+  const container = byId('receipts');
+  container.replaceChildren();
+  if (!state.receipts.length) {
+    container.append(node('p', 'Checks you choose will appear here, including their destinations and storage notes.', 'muted'));
+  }
+
+  for (const receipt of state.receipts) {
+    const card = node('article', null, 'receipt-card');
+    card.append(node('h3', (receipt.sample ? 'Sample · ' : '') + receipt.check));
+
+    const lines = [
+      ['Ran on', receipt.execution],
+      ['Recipient', receipt.recipients.join(', ')],
+      ['Read / sent', receipt.sent.join(', ')],
+      ['Retention', receipt.retained]
+    ];
+    for (const [label, value] of lines) {
+      const line = node('p');
+      line.append(node('strong', label + ': '), document.createTextNode(value));
+      card.append(line);
+    }
+    container.append(card);
+  }
+}
+
+/* ---------- Running checks ---------- */
+
+// The first real check wipes any sample data, so the two are never mixed.
 function beginLive() {
-  if (state.mode === 'sample') { state.groups = { browser: [], connection: [], records: [] }; state.receipts = []; }
+  if (state.mode === 'sample') {
+    state.groups = emptyGroups();
+    state.receipts = [];
+  }
   state.mode = 'live';
 }
 
-async function browserCheck() {
-  const rows = [
-    row('Reported browser', navigator.userAgent, 'navigator.userAgent', 'User-Agent strings can be reduced, changed or spoofed. They do not prove a software version.'),
-    row('Timezone setting', Intl.DateTimeFormat().resolvedOptions().timeZone || null, 'Intl.DateTimeFormat', 'A browser setting, not proof of physical location.'),
-    row('Language preferences', navigator.languages?.join(', ') || navigator.language, 'navigator.languages', 'Language preferences are not nationality.'),
-    row('Display in CSS pixels', `${screen.width} × ${screen.height} · scale ${devicePixelRatio}`, 'Screen and devicePixelRatio', 'This is not your monitor model or its physical dimensions.'),
-    row('Colour preference', matchMedia('(prefers-color-scheme: dark)').matches ? 'Dark' : 'Light / not specified', 'CSS media query', 'This reflects a preference, not anything about your identity.'),
-    row('Motion preference', matchMedia('(prefers-reduced-motion: reduce)').matches ? 'Reduced motion' : 'No reduced-motion preference', 'CSS media query', 'This setting is used for accessibility. It does not establish a medical condition.')
-  ];
-  if ($('hardware').checked) rows.push(row('Reported logical concurrency',navigator.hardwareConcurrency || null,'navigator.hardwareConcurrency','Browsers can reduce this value. It is not verified physical CPU inventory.'),row('Approximate memory hint',navigator.deviceMemory ? `${navigator.deviceMemory} GiB (coarse)` : null,'navigator.deviceMemory','This API is approximate, limited and unsupported in some browsers. Missing is a normal result.'));
-  if ($('pattern').checked && crypto.subtle) {
-    const bytes = new TextEncoder().encode(JSON.stringify(rows.map(r => [r.field,r.value])));
-    const digest = await crypto.subtle.digest('SHA-256',bytes);
-    const value = Array.from(new Uint8Array(digest), b => b.toString(16).padStart(2,'0')).join('');
-    rows.push(row('Local attribute pattern',value,'Web Crypto SHA-256 over selected values','A pattern for these attributes, not a unique person or a proven returning device.',{kind:'derived'}));
-  } else if ($('pattern').checked) rows.push(row('Local attribute pattern',null,'Web Crypto','This feature needs a supported secure browser context.'));
-  return rows;
+function chosenRecords() {
+  return [...document.querySelectorAll('input[name="record"]:checked')].map(box => box.value);
 }
 
-async function post(path, body, signal) {
-  const response = await fetch(path,{method:'POST',headers:{'content-type':'application/json'},body:JSON.stringify(body),cache:'no-store',signal});
-  const result = await response.json(); if (!response.ok) throw new Error(result.error || 'The check could not complete'); return result;
-}
-
-let activeRequest;
 async function run() {
   if (state.busy) return;
   const layer = state.layer;
-  if (layer === 'records' && (!$('external-consent').checked || ![...document.querySelectorAll('input[name="record"]:checked')].length)) { status('Choose a configured source and approve the listed recipient first.',true); return; }
-  beginLive(); state.busy = true; const generation = state.generation; activeRequest = new AbortController(); $('run').disabled = true; status('Reading only the checks you selected…'); render();
+
+  if (layer === 'records' && !(byId('external-consent').checked && chosenRecords().length)) {
+    setStatus('Choose a configured source and approve the listed recipient first.', true);
+    return;
+  }
+
+  beginLive();
+  state.busy = true;
+  const generation = state.generation;
+  activeRequest = new AbortController();
+  byId('run').disabled = true;
+  setStatus('Reading only the checks you selected…');
+  render();
+
   try {
-    if (layer === 'browser') {
-      const result = await browserCheck(); if (generation !== state.generation) return; state.groups.browser = result;
-      state.receipts.push({ check:'Browser check',execution:'This tab',recipients:['This browser'],sent:['Selected local settings; no upload of these results'],retained:'Tab memory until reset or reload.' });
-      status('Browser check complete. These collected results stayed in this tab.');
-    } else if (layer === 'connection') {
-      const result = await post('/api/connection',{consent:true},activeRequest.signal); if (generation !== state.generation) return; state.groups.connection = result.evidence; state.receipts.push(result.receipt);
-      status(result.publicAddress ? 'Connection evidence received. Unavailable transport fields need a configured trusted ingress.' : 'You are running locally. Public-network enrichment needs a real public connection; no external lookup was made.');
-    } else {
-      const checks = [...document.querySelectorAll('input[name="record"]:checked')].map(x => x.value);
-      const result = await post('/api/enrich',{consent:true,publicRecordsConsent:true,checks},activeRequest.signal); if (generation !== state.generation) return;
-      state.groups.records = result.results.flatMap(r => r.evidence);
-      result.results.forEach(r => state.receipts.push({check:r.check + ' · ' + r.state,execution:'Our server',recipients:[r.recipient],sent:['Public connection address / reverse-address query'],retained:'Request-scoped application results. Provider logging is outside this app’s reset control.'}));
-      status(result.results.map(r => r.state === 'complete' ? `${r.check}: complete` : `${r.check}: ${r.message}`).join(' · '));
+    if (layer === 'browser') await runBrowserLayer(generation);
+    else if (layer === 'connection') await runConnectionLayer(generation);
+    else await runRecordsLayer(generation);
+  } catch (error) {
+    // Nothing is shown if the visitor already pressed Reset or Sample.
+    if (generation === state.generation && error.name !== 'AbortError') setStatus(error.message, true);
+  } finally {
+    if (generation === state.generation) {
+      state.busy = false;
+      byId('run').disabled = false;
+      render();
     }
-  } catch (error) { if (generation === state.generation && error.name !== 'AbortError') status(error.message,true); }
-  finally { if (generation === state.generation) { state.busy = false; $('run').disabled = false; render(); } }
+  }
 }
 
-function sample() {
-  activeRequest?.abort(); state.generation++; state.busy = false; state.mode = 'sample';
-  state.groups = {
-    browser: [row('Reported browser','Example Browser / desktop','Illustrative fixture','This is a labelled sample, not information read from your device.'),row('Timezone setting','Europe/London','Illustrative fixture','A timezone setting does not establish physical location.'),row('Display in CSS pixels','1440 × 900 · scale 1','Illustrative fixture','Display values describe a capability, not a person.'),row('Approximate memory hint',null,'Illustrative fixture','An unsupported API is a normal result.')],
-    connection: [row('Public connection address','198.51.100.42','Documentation address','This reserved example is not a real visitor address.',{kind:'sample',subject:'sample connection'}),row('Registered network','Example Research Network','Synthetic fixture','A network label is not proof of employment.',{kind:'sample'}),row('JA4 fingerprint','t13d1516h2_example_example','Synthetic fixture','Illustrative format only; no TLS handshake was captured.',{kind:'sample'})],
-    records: [row('Reverse DNS','example.invalid','Synthetic fixture','An address-associated record is not a private computer hostname.',{kind:'sample'}),row('Registration country','GB','Synthetic fixture','A registration field is not a physical-location measurement.',{kind:'sample'})]
-  };
-  state.receipts = [{sample:true,check:'Sample exploration',execution:'This tab',recipients:['None beyond ordinary page hosting'],sent:['No network lookup'],retained:'Tab memory until reset or reload.'}];
-  select('browser'); status('Sample loaded. These values are illustrative; they are not your data.'); $('workspace').scrollIntoView({behavior:'smooth'});
+async function runBrowserLayer(generation) {
+  const rows = await runBrowserChecks({ hardware: byId('hardware').checked, pattern: byId('pattern').checked });
+  if (generation !== state.generation) return;
+
+  state.groups.browser = rows;
+  state.receipts.push({
+    check: 'Browser check',
+    execution: 'This tab',
+    recipients: ['This browser'],
+    sent: ['Selected local settings; no upload of these results'],
+    retained: 'Tab memory until reset or reload.'
+  });
+  setStatus('Browser check complete. These collected results stayed in this tab.');
 }
 
-function reset() { activeRequest?.abort(); state.generation++; state.busy = false; state.mode = 'idle'; state.groups = {browser:[],connection:[],records:[]}; state.receipts = []; document.querySelectorAll('input[type="checkbox"]').forEach(el => { el.checked = false; }); select('browser'); status('This tab’s results were cleared. Previously sent requests and provider logs cannot be recalled.'); }
-async function transportCheck() {
+async function runConnectionLayer(generation) {
+  const result = await post('/api/connection', { consent: true }, activeRequest.signal);
+  const rows = cleanRows(result.evidence);
+  const receipt = cleanReceipt(result.receipt);
+  if (generation !== state.generation) return;
+
+  state.groups.connection = rows;
+  state.receipts.push(receipt);
+  setStatus(result.publicAddress
+    ? 'Connection evidence received. Unavailable transport fields need a configured trusted ingress.'
+    : 'You are running locally. Public-network enrichment needs a real public connection; no external lookup was made.');
+}
+
+async function runRecordsLayer(generation) {
+  const checks = chosenRecords();
+  const result = await post('/api/enrich', { consent: true, publicRecordsConsent: true, checks }, activeRequest.signal);
+  if (!Array.isArray(result.results)) throw new Error(UNREADABLE);
+
+  const results = result.results.filter(item => item && typeof item === 'object');
+  const rows = results.flatMap(item => cleanRows(item.evidence ?? []));
+  if (generation !== state.generation) return;
+
+  state.groups.records = rows;
+  for (const item of results) {
+    state.receipts.push({
+      check: `${plainText(item.check)} · ${plainText(item.state)}`,
+      execution: 'Our server',
+      recipients: [plainText(item.recipient)],
+      sent: ['Public connection address / reverse-address query'],
+      retained: 'Request-scoped application results. Provider logging is outside this app’s reset control.'
+    });
+  }
+  setStatus(results.map(item => item.state === 'complete' ? `${plainText(item.check)}: complete` : `${plainText(item.check)}: ${plainText(item.message)}`).join(' · '));
+}
+
+// The optional transport check goes to a separate first-party address, without cookies.
+async function runTransport() {
   if (!state.config?.transportOrigin || state.busy) return;
-  beginLive(); state.busy = true; const generation = state.generation; activeRequest = new AbortController(); $('transport-run').disabled = true;
-  status('Requesting the separate transport endpoint you selected…');
+
+  beginLive();
+  state.busy = true;
+  const generation = state.generation;
+  activeRequest = new AbortController();
+  byId('transport-run').disabled = true;
+  setStatus('Requesting the separate transport endpoint you selected…');
+
   try {
-    const response = await fetch(state.config.transportOrigin + '/api/transport',{method:'POST',mode:'cors',credentials:'omit',headers:{'content-type':'application/json'},body:JSON.stringify({consent:true}),cache:'no-store',signal:activeRequest.signal});
-    const result = await response.json(); if (!response.ok) throw new Error(result.error || 'Transport diagnostic unavailable'); if (generation !== state.generation) return;
-    state.groups.connection = [...state.groups.connection.filter(r => !/fingerprint/i.test(r.field)),...result.evidence]; state.receipts.push(result.receipt);
-    status(result.trustedTransport ? 'Transport report received. Patterns describe this diagnostic connection, not your identity.' : 'The diagnostic request did not arrive through a trusted transport collector. No fingerprints were accepted.');
-  } catch(error) { if (generation === state.generation && error.name !== 'AbortError') status('Transport endpoint unavailable. Check its certificate and deployment configuration.',true); }
-  finally { $('transport-run').disabled = false; if (generation === state.generation) { state.busy = false; render(); } }
-}
-function modal(title, content) { $('modal-title').textContent = title; $('modal-content').replaceChildren(...content); $('modal').showModal(); }
-function privacy() {
-  const content = [node('p','Choose the depth. Sample mode does not run lookups. Selected browser results are computed in your tab. A normal page load still sends an IP and request headers to the hosting infrastructure.')];
-  for (const [title,text] of [['Connection checks','The same-origin server returns connection evidence after your click. Optional transport fingerprints use a separately requested, first-party diagnostic endpoint and are accepted only from a configured trusted peer.'],['Public records','Off by default. The operator must configure them, and you separately choose the checks and their recipients. DNS queries reach the configured resolver; registry queries reach IANA and the selected regional registry. Shodan is an optional additional recipient.'],['Retention','No accounts, analytics, cookies or results database are part of this application. Application results are request-scoped; browser results stay in memory. Hashed security counters are removed within 61 seconds. Hosting and proxy logs require separate operator configuration.'],['Limits','A fingerprint is not an identity. A network owner is not an employer. Indexed exposure records do not establish a current vulnerability on your laptop. Reset cannot erase another provider’s logs.']]) content.push(node('h3',title),node('p',text));
-  modal('Your choice, in plain language',content);
-}
-function exportPreview() {
-  const all = Object.values(state.groups).flat();
-  if (!all.length) { status('Run a check or load a sample before exporting.'); return; }
-  const data = redactReport({ project:'LayerLens',mode:state.mode,exportedAt:new Date().toISOString(),evidence:all,receipts:state.receipts });
-  const text = JSON.stringify(data,null,2); const pre = node('pre',text); const download = node('button','Download this JSON','button primary');
-  download.addEventListener('click',() => { const url = URL.createObjectURL(new Blob([text],{type:'application/json'})); const a = node('a'); a.href = url; a.download = 'layerlens-redacted.json'; a.click(); setTimeout(() => URL.revokeObjectURL(url),1000); });
-  modal('Preview before you share',[node('p','Exact connection identifiers and selected browser details have been removed. Remaining combinations can still be revealing.'),pre,download]);
+    const response = await fetch(state.config.transportOrigin + '/api/transport', {
+      method: 'POST',
+      mode: 'cors',
+      credentials: 'omit',
+      headers: { 'content-type': 'application/json' },
+      body: JSON.stringify({ consent: true }),
+      cache: 'no-store',
+      signal: activeRequest.signal
+    });
+    const result = await readJSON(response);
+    if (!response.ok) throw new Error(result?.error || 'Transport diagnostic unavailable');
+
+    const rows = cleanRows(result?.evidence);
+    const receipt = cleanReceipt(result.receipt);
+    if (generation !== state.generation) return;
+
+    // New fingerprints replace the old ones. The address rows from the connection check stay.
+    const kept = state.groups.connection.filter(item => !/fingerprint/i.test(item.field));
+    state.groups.connection = [...kept, ...rows];
+    state.receipts.push(receipt);
+    setStatus(result.trustedTransport
+      ? 'Transport report received. Patterns describe this diagnostic connection, not your identity.'
+      : 'The diagnostic request did not arrive through a trusted transport collector. No fingerprints were accepted.');
+  } catch (error) {
+    if (generation === state.generation && error.name !== 'AbortError') {
+      setStatus('Transport endpoint unavailable. Check its certificate and deployment configuration.', true);
+    }
+  } finally {
+    byId('transport-run').disabled = false;
+    if (generation === state.generation) {
+      state.busy = false;
+      render();
+    }
+  }
 }
 
-document.querySelectorAll('[data-layer]').forEach(el => el.addEventListener('click',() => { select(el.dataset.layer); status(state.mode === 'sample' ? 'Illustrative sample. Running a real check will clear sample findings.' : 'Select a check to continue.'); }));
-$('sample').addEventListener('click',sample); $('browser-start').addEventListener('click',() => { select('browser'); $('workspace').scrollIntoView({behavior:'smooth'}); run(); });
-$('run').addEventListener('click',run); $('reset').addEventListener('click',reset); $('privacy-open').addEventListener('click',privacy); $('export').addEventListener('click',exportPreview); $('modal-close').addEventListener('click',() => $('modal').close());
-$('transport-run').addEventListener('click',transportCheck);
-select('browser');
-// Configuration contains operator policy only, not the visitor's address or browser results.
-fetch('/api/config',{cache:'no-store'}).then(r => r.json()).then(config => {
-  state.config = config;
-  document.querySelectorAll('input[name="record"]').forEach(el => { el.disabled = !config.checks[el.value]; $('recipient-' + el.value).textContent = config.checks[el.value] ? config.recipients[el.value] : 'Operator has not enabled this check'; });
-  select(state.layer);
-}).catch(() => { document.querySelectorAll('input[name="record"]').forEach(el => { el.disabled = true; }); status('Configuration unavailable. Sample and local browser checks remain available.'); });
+/* ---------- Sample, reset and dialogs ---------- */
+
+function loadSample() {
+  activeRequest?.abort();
+  state.generation++;
+  state.busy = false;
+  state.mode = 'sample';
+  state.groups = sampleGroups();
+  state.receipts = sampleReceipts();
+  selectLayer('browser');
+  setStatus('Sample loaded. These values are illustrative; they are not your data.');
+  scrollToWorkspace();
+}
+
+function reset() {
+  activeRequest?.abort();
+  state.generation++;
+  state.busy = false;
+  state.mode = 'idle';
+  state.groups = emptyGroups();
+  state.receipts = [];
+  for (const box of document.querySelectorAll('input[type="checkbox"]')) box.checked = false;
+  selectLayer('browser');
+  setStatus('This tab’s results were cleared. Previously sent requests and provider logs cannot be recalled.');
+}
+
+function openDialog(title, content) {
+  byId('modal-title').textContent = title;
+  byId('modal-content').replaceChildren(...content);
+  byId('modal').showModal();
+}
+
+function showPrivacy() {
+  const content = [node('p', PRIVACY_INTRO)];
+  for (const [title, body] of PRIVACY_SECTIONS) content.push(node('h3', title), node('p', body));
+  openDialog('Your choice, in plain language', content);
+}
+
+function showExportPreview() {
+  const findings = Object.values(state.groups).flat();
+  if (!findings.length) {
+    setStatus('Run a check or load a sample before exporting.');
+    return;
+  }
+
+  const report = redactReport({
+    project: 'LayerLens',
+    mode: state.mode,
+    exportedAt: new Date().toISOString(),
+    evidence: findings,
+    receipts: state.receipts
+  });
+  const json = JSON.stringify(report, null, 2);
+
+  // The preview can scroll, so it must be reachable with the keyboard too.
+  const preview = node('pre', json);
+  preview.tabIndex = 0;
+  preview.setAttribute('role', 'region');
+  preview.setAttribute('aria-label', 'Redacted export, JSON');
+
+  const download = node('button', 'Download this JSON', 'button primary');
+  download.addEventListener('click', () => downloadText(json, 'layerlens-redacted.json'));
+
+  openDialog('Preview before you share', [
+    node('p', 'Exact connection identifiers and selected browser details have been removed. Remaining combinations can still be revealing.'),
+    preview,
+    download
+  ]);
+}
+
+function downloadText(content, filename) {
+  const url = URL.createObjectURL(new Blob([content], { type: 'application/json' }));
+  const link = node('a');
+  link.href = url;
+  link.download = filename;
+  link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
+}
+
+/* ---------- Start ---------- */
+
+for (const button of document.querySelectorAll('[data-layer]')) {
+  button.addEventListener('click', () => {
+    selectLayer(button.dataset.layer);
+    setStatus(state.mode === 'sample'
+      ? 'Illustrative sample. Running a real check will clear sample findings.'
+      : 'Select a check to continue.');
+  });
+}
+byId('sample').addEventListener('click', loadSample);
+byId('browser-start').addEventListener('click', () => {
+  selectLayer('browser');
+  scrollToWorkspace();
+  run();
+});
+byId('run').addEventListener('click', run);
+byId('reset').addEventListener('click', reset);
+byId('privacy-open').addEventListener('click', showPrivacy);
+byId('export').addEventListener('click', showExportPreview);
+byId('modal-close').addEventListener('click', () => byId('modal').close());
+byId('transport-run').addEventListener('click', runTransport);
+
+selectLayer('browser');
+loadConfig();
+
+// The configuration only says what the operator switched on. It never contains the visitor's address.
+async function loadConfig() {
+  try {
+    const response = await fetch('/api/config', { cache: 'no-store' });
+    const config = await response.json();
+    state.config = config;
+
+    for (const box of document.querySelectorAll('input[name="record"]')) {
+      const enabled = Boolean(config.checks[box.value]);
+      box.disabled = !enabled;
+      byId('recipient-' + box.value).textContent = enabled ? config.recipients[box.value] : 'Operator has not enabled this check';
+    }
+    selectLayer(state.layer);
+  } catch {
+    for (const box of document.querySelectorAll('input[name="record"]')) box.disabled = true;
+    setStatus('Configuration unavailable. Sample and local browser checks remain available.', false);
+  }
+}

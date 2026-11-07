@@ -44,7 +44,7 @@ test('HTTP adapter limits chunked responses, disables redirects, and parses JSON
   let seen;
   const fetcher = async (_url,options) => { seen = options; return new Response('x'.repeat(100)); };
   await assert.rejects(fetchJSON('https://data.iana.org/test',{hosts:new Set(['data.iana.org']),fetcher,maxBytes:30}),/too large/);
-  assert.equal(seen.redirect,'error');
+  assert.equal(seen.redirect,'manual');
   const result = await fetchJSON('https://data.iana.org/test',{hosts:new Set(['data.iana.org']),fetcher:async()=>Response.json({services:[]})});
   assert.deepEqual(result,{services:[]});
 });

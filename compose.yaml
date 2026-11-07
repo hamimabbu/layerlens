@@ -8,6 +8,10 @@ services:
       ENABLE_EXTERNAL_LOOKUPS: ${ENABLE_EXTERNAL_LOOKUPS:-false}
       ENABLE_INTERNETDB: ${ENABLE_INTERNETDB:-false}
       DNS_RESOLVERS: ${DNS_RESOLVERS:-}
+      TRUSTED_PROXY_IPS: ${TRUSTED_PROXY_IPS:-}
+      TRUSTED_PROXY_HOST: ${TRUSTED_PROXY_HOST:-}
+      APP_ORIGIN: ${APP_ORIGIN:-}
+      TRANSPORT_ORIGIN: ${TRANSPORT_ORIGIN:-}
     read_only: true
     cap_drop: [ALL]
     security_opt: [no-new-privileges:true]
